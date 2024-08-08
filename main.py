@@ -1,12 +1,4 @@
-from news_monitoring import (
-    NewsLoader,
-    KeywordFilter,
-    ClusterProcessor,
-    MessageProcessor,
-    Notifier,
-    NewsProcessor,
-)
-
+from news_monitoring import NewsMonitoringFactory
 
 if __name__ == "__main__":
     file_path = "./data/posts_mc.xlsx"
@@ -40,20 +32,8 @@ if __name__ == "__main__":
         "министерством цифровых технологий",
     ]
 
-    news_loader = NewsLoader(file_path)
-    relevance_filter = KeywordFilter(keywords)
-    cluster_processor = ClusterProcessor()
-    message_processor = MessageProcessor()
-    notifier = Notifier()
-
-    news_processor = NewsProcessor(
-        news_loader=news_loader,
-        message_processor=message_processor,
-        relevance_filter=relevance_filter,
-        cluster_processor=cluster_processor,
-        notifier=notifier,
-        output_file=output_file,
-    )
+    factory = NewsMonitoringFactory(file_path, output_file, keywords)
+    news_processor = factory.create_news_processor()
 
     # Process all news entries
     news_processor.process_messages()

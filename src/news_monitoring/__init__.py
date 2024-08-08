@@ -1,16 +1,8 @@
-from .news_loader import NewsLoader
-from .keyword_filter import KeywordFilter
-from .cluster_processor import ClusterProcessor
-from .message_processor import MessageProcessor
-from .notifier import Notifier
 from .news_processor import NewsProcessor
+from .news_monitoring_factory import NewsMonitoringFactory
 
 
 __all__ = [
-    "NewsLoader",
-    "KeywordFilter",
-    "ClusterProcessor",
-    "MessageProcessor",
-    "Notifier",
     "NewsProcessor",
+    "NewsMonitoringFactory",
 ]
