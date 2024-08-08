@@ -15,14 +15,14 @@ class NewsProcessor:
         relevance_filter: KeywordFilter,
         cluster_processor: ClusterProcessor,
         notifier: Notifier,
-        output_file: str,
+        output_path: str,
     ) -> None:
         self.news_loader = news_loader
         self.message_processor = message_processor
         self.relevance_filter = relevance_filter
         self.cluster_processor = cluster_processor
         self.notifier = notifier
-        self.excel_exporter = ExcelExporter(output_file)
+        self.excel_exporter = ExcelExporter(output_path)
         self.excel_exporter.write_header(
             [
                 "Время публикации",
