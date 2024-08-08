@@ -1,6 +1,8 @@
 from typing import List, Optional, TypedDict, Any
 import numpy as np
 import pandas as pd
+from transformers import AutoTokenizer, AutoModel
+import torch
 
 
 # TypedDict для представления структуры сообщения
@@ -107,17 +109,45 @@ class Classifier:
 
 # Модуль управления состоянием
 class StateManager:
+    def __init__(self) -> None:
+        """
+        Инициализация StateManager.
+        Создает пустой список для хранения эмбеддингов сообщений.
+        """
+        self.embeddings = []
+
     def save_embedding(self, embedding: Embedding) -> None:
         """
-        Сохраняет эмбеддинг сообщения в памяти.
+        Сохраняет эмбеддинг сообщения в память.
         """
-        pass
+        self.embeddings.append(embedding)
 
     def get_previous_embeddings(self) -> List[Embedding]:
         """
         Возвращает список предыдущих эмбеддингов для сравнения.
         """
-        pass
+        return self.embeddings
+
+    def is_duplicate(self, new_embedding: Embedding, threshold: float = 0.9) -> bool:
+        """
+        Проверяет, является ли новый эмбеддинг дубликатом одного из ранее сохраненных.
+        Сравнение осуществляется с использованием косинусного расстояния.
+        Возвращает True, если найден дубликат, иначе False.
+        """
+        for stored_embedding in self.embeddings:
+            similarity = self._cosine_similarity(new_embedding['vector'], stored_embedding['vector'])
+            if similarity >= threshold:
+                return True
+        return False
+
+    def _cosine_similarity(self, vec1: np.ndarray, vec2: np.ndarray) -> float:
+        """
+        Вычисляет косинусное сходство между двумя векторами.
+        """
+        dot_product = np.dot(vec1, vec2)
+        norm_vec1 = np.linalg.norm(vec1)
+        norm_vec2 = np.linalg.norm(vec2)
+        return dot_product / (norm_vec1 * norm_vec2)
 
 
 # Модуль уведомлений
@@ -136,28 +166,77 @@ class Notifier:
 
 # Модуль предобработки текста
 class TextPreprocessor:
+    def __init__(self) -> None:
+        """
+        Инициализация TextPreprocessor с загрузкой модели и токенизатора.
+        """
+        # Загружаем токенизатор и модель
+        self.tokenizer = AutoTokenizer.from_pretrained("cointegrated/rubert-tiny2")
+        self.model = AutoModel.from_pretrained("cointegrated/rubert-tiny2")
+
+    def preprocess(self, text: str) -> str:
+        """
+        Выполняет очистку текста: приведение к нижнему регистру, удаление пунктуации и лишних пробелов.
+        Возвращает очищенный текст.
+        """
+        # Приведение текста к нижнему регистру
+        text = text.lower()
+
+        # Удаление лишних пробелов
+        text = " ".join(text.split())
+
+        return text
+
+    def create_embedding(self, text: str) -> Embedding:
+        """
+        Создает эмбеддинг текста с использованием предобученной модели.
+        Возвращает эмбеддинг в виде numpy массива.
+        """
+        # Токенизация текста
+        inputs = self.tokenizer(text, return_tensors="pt", truncation=True, padding=True)
+
+        # Генерация эмбеддингов с использованием модели
+        with torch.no_grad():
+            outputs = self.model(**inputs)
+
+        # Получаем эмбеддинги
+        embeddings = outputs.last_hidden_state[:, 0, :].numpy()
+
+        return Embedding(vector=embeddings[0])
+
     def process_and_embed(self, text: str) -> (str, Embedding):
         """
         Выполняет очистку текста и создание эмбеддинга.
         Возвращает очищенный текст и эмбеддинг.
         """
-        pass
+        cleaned_text = self.preprocess(text)
+        embedding = self.create_embedding(cleaned_text)
+        return cleaned_text, embedding
 
 
 # Модуль идентификации уникальных событий
 class EventIdentifier:
+    def __init__(self, state_manager: StateManager) -> None:
+        """
+        Инициализация EventIdentifier с менеджером состояния.
+        """
+        self.state_manager = state_manager
+
     def is_event_unique(self, embedding: Embedding) -> bool:
         """
         Проверяет уникальность события на основе эмбеддинга.
         Возвращает True, если событие уникально, иначе False.
         """
-        pass
+        # Проверяем, является ли новый эмбеддинг дубликатом
+        if self.state_manager.is_duplicate(embedding):
+            return False
+        return True
 
     def save_event_state(self, embedding: Embedding) -> None:
         """
         Сохраняет состояние события (эмбеддинг) для дальнейшего использования.
         """
-        pass
+        self.state_manager.save_embedding(embedding)
 
 
 # Основной модуль обработки
@@ -206,3 +285,47 @@ class MainProcessor:
         self.event_identifier.save_event_state(embedding)
         self.notifier.notify(message)
         print(f"Notification sent for message: {message['text']}")
+
+
+if __name__ == "__main__":
+    # Пусть к файлу с новостями
+    file_path = "./data/posts_mc.xlsx"
+
+    # Определяем список синонимов для фильтрации новостей
+    synonyms = [
+        "минцифры рф", "минцифра рф", "минцифре рф", "минцифрой рф", "минцифрах рф",
+        "министерство цифрового развития", "министерству цифрового развития",
+        "министерства цифрового развития", "минцифра россии", "минцифры россии",
+        "министерство цифрового развития рф", "министерство цифрового развития россии",
+        "министерство цифровизации", "министерство цифровизации рф",
+        "министерство цифровизации россии", "минцифры", "минцифра",
+        "цифровое министерство", "цифровое министерство рф",
+        "цифровое министерство россии", "министерство цифровой экономики",
+        "министерство цифровой экономики рф", "министерство цифровой экономики россии",
+        "минциф", "минцифров", "минцифрами", "министерство цифрового развития и связи",
+        "министерство цифрового развития и связи рф", "министерство цифрового развития и связи россии",
+        "министерство цифровых технологий", "министерство цифровых технологий рф",
+        "министерство цифровых технологий россии"
+    ]
+
+    # Инициализация модулей
+    data_loader = DataLoader(file_path)
+    term_manager = TermManager(synonyms)
+    classifier = Classifier(term_manager)
+    state_manager = StateManager()
+    event_identifier = EventIdentifier(state_manager)
+    text_preprocessor = TextPreprocessor()
+    notifier = Notifier()
+
+    # Создание основного процессора
+    main_processor = MainProcessor(
+        data_loader=data_loader,
+        text_preprocessor=text_preprocessor,
+        classifier=classifier,
+        event_identifier=event_identifier,
+        notifier=notifier
+    )
+
+    # Запуск обработки всех сообщений
+    while True:
+        main_processor.process_next_message()
