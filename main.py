@@ -85,38 +85,32 @@ class TextClassifier:
         return False
 
 
-# Модуль управления состоянием
-class StateManager:
+# Модуль управления состоянием и идентификации событий
+class EventStateManager:
     def __init__(self) -> None:
         """
-        Инициализация StateManager.
+        Инициализация EventStateManager.
         Создает пустой список для хранения эмбеддингов сообщений.
         """
         self.embeddings = []
 
-    def save_embedding(self, embedding: Embedding) -> None:
+    def save_event_state(self, embedding: Embedding) -> None:
         """
         Сохраняет эмбеддинг сообщения в память.
         """
         self.embeddings.append(embedding)
 
-    def get_previous_embeddings(self) -> List[Embedding]:
+    def is_event_unique(self, embedding: Embedding, threshold: float = 0.9) -> bool:
         """
-        Возвращает список предыдущих эмбеддингов для сравнения.
-        """
-        return self.embeddings
-
-    def is_duplicate(self, new_embedding: Embedding, threshold: float = 0.9) -> bool:
-        """
-        Проверяет, является ли новый эмбеддинг дубликатом одного из ранее сохраненных.
+        Проверяет уникальность события на основе эмбеддинга.
         Сравнение осуществляется с использованием косинусного расстояния.
-        Возвращает True, если найден дубликат, иначе False.
+        Возвращает True, если событие уникально, иначе False.
         """
         for stored_embedding in self.embeddings:
-            similarity = self._cosine_similarity(new_embedding['vector'], stored_embedding['vector'])
+            similarity = self._cosine_similarity(embedding['vector'], stored_embedding['vector'])
             if similarity >= threshold:
-                return True
-        return False
+                return False
+        return True
 
     def _cosine_similarity(self, vec1: np.ndarray, vec2: np.ndarray) -> float:
         """
@@ -192,35 +186,10 @@ class TextPreprocessor:
         return cleaned_text, embedding
 
 
-# Модуль идентификации уникальных событий
-class EventIdentifier:
-    def __init__(self, state_manager: StateManager) -> None:
-        """
-        Инициализация EventIdentifier с менеджером состояния.
-        """
-        self.state_manager = state_manager
-
-    def is_event_unique(self, embedding: Embedding) -> bool:
-        """
-        Проверяет уникальность события на основе эмбеддинга.
-        Возвращает True, если событие уникально, иначе False.
-        """
-        # Проверяем, является ли новый эмбеддинг дубликатом
-        if self.state_manager.is_duplicate(embedding):
-            return False
-        return True
-
-    def save_event_state(self, embedding: Embedding) -> None:
-        """
-        Сохраняет состояние события (эмбеддинг) для дальнейшего использования.
-        """
-        self.state_manager.save_embedding(embedding)
-
-
 # Основной модуль обработки
 class MainProcessor:
     def __init__(self, data_loader: DataLoader, text_preprocessor: TextPreprocessor,
-                 text_classifier: TextClassifier, event_identifier: EventIdentifier,
+                 text_classifier: TextClassifier, event_state_manager: EventStateManager,
                  notifier: Notifier) -> None:
         """
         Инициализация MainProcessor с необходимыми модулями.
@@ -228,7 +197,7 @@ class MainProcessor:
         self.data_loader = data_loader
         self.text_preprocessor = text_preprocessor
         self.text_classifier = text_classifier
-        self.event_identifier = event_identifier
+        self.event_state_manager = event_state_manager
         self.notifier = notifier
 
     def process_messages(self) -> None:
@@ -251,12 +220,12 @@ class MainProcessor:
                 continue
 
             # Шаг 3: Проверка уникальности события
-            if not self.event_identifier.is_event_unique(embedding):
+            if not self.event_state_manager.is_event_unique(embedding):
                 duplicate_events += 1
                 continue
 
             # Шаг 4: Сохранение состояния и отправка уведомления
-            self.event_identifier.save_event_state(embedding)
+            self.event_state_manager.save_event_state(embedding)
             self.notifier.notify(message)
 
 
@@ -284,8 +253,7 @@ if __name__ == "__main__":
     # Инициализация модулей
     data_loader = DataLoader(file_path)
     text_classifier = TextClassifier(synonyms)
-    state_manager = StateManager()
-    event_identifier = EventIdentifier(state_manager)
+    event_state_manager = EventStateManager()
     text_preprocessor = TextPreprocessor()
     notifier = Notifier()
 
@@ -294,7 +262,7 @@ if __name__ == "__main__":
         data_loader=data_loader,
         text_preprocessor=text_preprocessor,
         text_classifier=text_classifier,
-        event_identifier=event_identifier,
+        event_state_manager=event_state_manager,
         notifier=notifier
     )
 
