@@ -65,40 +65,24 @@ class DataLoader:
             yield message
 
 
-# Модуль поиска терминов
-class TermManager:
+# Объединенный модуль поиска терминов и классификации
+class TextClassifier:
     def __init__(self, synonyms: List[str]) -> None:
         """
-        Инициализация заданным списком синонимов.
+        Инициализация классификатора с заданным списком синонимов.
         """
         self.synonyms = synonyms
 
-    def contains_relevant_terms(self, text: str) -> bool:
+    def classify(self, text: str) -> bool:
         """
-        Проверяет, содержит ли текст релевантные термины (слова и их синонимы).
-        Возвращает True, если релевантные термины найдены, иначе False.
+        Классифицирует сообщение как релевантное или нерелевантное.
+        Возвращает True, если сообщение связано с термином, иначе False.
         """
         lower_text = text.lower()
         for synonym in self.synonyms:
             if synonym.lower() in lower_text:
                 return True
         return False
-
-
-# Модуль классификации
-class Classifier:
-    def __init__(self, term_manager: 'TermManager') -> None:
-        """
-        Инициализация классификатора с менеджером терминов.
-        """
-        self.term_manager = term_manager
-
-    def classify(self, text: str) -> bool:
-        """
-        Классифицирует сообщение как релевантное или нерелевантное.
-        Возвращает True, если сообщение связано с Минцифры РФ, иначе False.
-        """
-        return self.term_manager.contains_relevant_terms(text)
 
 
 # Модуль управления состоянием
@@ -236,14 +220,14 @@ class EventIdentifier:
 # Основной модуль обработки
 class MainProcessor:
     def __init__(self, data_loader: DataLoader, text_preprocessor: TextPreprocessor,
-                 classifier: Classifier, event_identifier: EventIdentifier,
+                 text_classifier: TextClassifier, event_identifier: EventIdentifier,
                  notifier: Notifier) -> None:
         """
         Инициализация MainProcessor с необходимыми модулями.
         """
         self.data_loader = data_loader
         self.text_preprocessor = text_preprocessor
-        self.classifier = classifier
+        self.text_classifier = text_classifier
         self.event_identifier = event_identifier
         self.notifier = notifier
 
@@ -262,7 +246,7 @@ class MainProcessor:
             cleaned_text, embedding = self.text_preprocessor.process_and_embed(message['text'])
 
             # Шаг 2: Классификация релевантности сообщения
-            if not self.classifier.classify(cleaned_text):
+            if not self.text_classifier.classify(cleaned_text):
                 unrelevant_messages += 1
                 continue
 
@@ -299,8 +283,7 @@ if __name__ == "__main__":
 
     # Инициализация модулей
     data_loader = DataLoader(file_path)
-    term_manager = TermManager(synonyms)
-    classifier = Classifier(term_manager)
+    text_classifier = TextClassifier(synonyms)
     state_manager = StateManager()
     event_identifier = EventIdentifier(state_manager)
     text_preprocessor = TextPreprocessor()
@@ -310,7 +293,7 @@ if __name__ == "__main__":
     main_processor = MainProcessor(
         data_loader=data_loader,
         text_preprocessor=text_preprocessor,
-        classifier=classifier,
+        text_classifier=text_classifier,
         event_identifier=event_identifier,
         notifier=notifier
     )
