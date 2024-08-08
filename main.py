@@ -29,6 +29,26 @@ class DataLoader:
         pass
 
 
+# Модуль поиска терминов
+class TermManager:
+    def __init__(self, synonyms: List[str]) -> None:
+        """
+        Инициализация заданным списком синонимов.
+        """
+        self.synonyms = synonyms
+
+    def contains_relevant_terms(self, text: str) -> bool:
+        """
+        Проверяет, содержит ли текст релевантные термины (слова и их синонимы).
+        Возвращает True, если релевантные термины найдены, иначе False.
+        """
+        lower_text = text.lower()
+        for synonym in self.synonyms:
+            if synonym.lower() in lower_text:
+                return True
+        return False
+
+
 # Модуль классификации
 class Classifier:
     def __init__(self, term_manager: 'TermManager') -> None:
@@ -69,29 +89,6 @@ class Notifier:
         pass
 
 
-# Модуль поиска терминов
-class TermManager:
-    def __init__(self, synonyms: List[str]) -> None:
-        """
-        Инициализация заданным списком синонимов.
-        """
-        self.synonyms = synonyms
-
-    def contains_relevant_terms(self, text: str) -> bool:
-        """
-        Проверяет, содержит ли текст релевантные термины (слова и их синонимы).
-        Возвращает True, если релевантные термины найдены, иначе False.
-        """
-        # Приведение текста к нижнему регистру для облегчения поиска
-        lower_text = text.lower()
-
-        # Проверка наличия любого синонима в тексте
-        for synonym in self.synonyms:
-            if synonym.lower() in lower_text:
-                return True
-
-        return False
-
 # Модуль предобработки текста
 class TextPreprocessor:
     def process_and_embed(self, text: str) -> (str, Embedding):
@@ -100,6 +97,7 @@ class TextPreprocessor:
         Возвращает очищенный текст и эмбеддинг.
         """
         pass
+
 
 # Модуль идентификации уникальных событий
 class EventIdentifier:
@@ -115,6 +113,7 @@ class EventIdentifier:
         Сохраняет состояние события (эмбеддинг) для дальнейшего использования.
         """
         pass
+
 
 # Основной модуль обработки
 class MainProcessor:
