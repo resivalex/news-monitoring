@@ -5,24 +5,24 @@ import pandas as pd
 from transformers import AutoTokenizer, AutoModel
 import torch
 
-# TypedDict for representing a news message structure
-class NewsMessage(TypedDict):
+# TypedDict for representing a news entry structure
+class NewsEntry(TypedDict):
     timestamp: str
     text: str
     url: str
 
 
-class TextEmbedding(TypedDict):
+class TextVector(TypedDict):
     vector: np.ndarray
 
 
-class ClusterManager:
+class ClusterHandler:
     def __init__(self) -> None:
         self.embeddings = []
         self.cluster_count = 1
         self.cluster_ids = []
 
-    def add_to_cluster(self, embedding: TextEmbedding) -> int:
+    def assign_cluster_id(self, embedding: TextVector) -> int:
         # Save the embedding and assign a new cluster ID
         self.embeddings.append(embedding)
         cluster_id = self.cluster_count
@@ -30,7 +30,7 @@ class ClusterManager:
         self.cluster_count += 1
         return cluster_id
 
-    def get_cluster(self, embedding: TextEmbedding, threshold: float = 0.9) -> (bool, Optional[int]):
+    def find_cluster(self, embedding: TextVector, threshold: float = 0.9) -> (bool, Optional[int]):
         # Check if the embedding is unique based on cosine similarity
         for i, stored_embedding in enumerate(self.embeddings):
             similarity = self._cosine_similarity(embedding['vector'], stored_embedding['vector'])
@@ -46,17 +46,17 @@ class ClusterManager:
         return dot_product / (norm_vec1 * norm_vec2)
 
 
-class RelevanceClassifier:
+class KeywordMatcher:
     def __init__(self, keywords: List[str]) -> None:
         self.keywords = keywords
 
-    def is_relevant(self, text: str) -> bool:
+    def matches_keywords(self, text: str) -> bool:
         # Check if the text contains any of the relevant keywords
         text_lower = text.lower()
         return any(keyword.lower() in text_lower for keyword in self.keywords)
 
 
-class ExcelWriter:
+class SpreadsheetWriter:
     def __init__(self, output_file: str, save_interval: int = 1000):
         self.output_file = output_file
         self.workbook = Workbook()
@@ -83,16 +83,16 @@ class ExcelWriter:
         print(f"File saved to {self.output_file}")
 
 
-class TextProcessor:
+class TextPipeline:
     def __init__(self) -> None:
         self.tokenizer = AutoTokenizer.from_pretrained("cointegrated/rubert-tiny2")
         self.model = AutoModel.from_pretrained("cointegrated/rubert-tiny2")
 
-    def preprocess(self, text: str) -> str:
+    def clean_text(self, text: str) -> str:
         # Clean and preprocess the text
         return " ".join(text.lower().split())
 
-    def generate_embedding(self, text: str) -> TextEmbedding:
+    def vectorize_text(self, text: str) -> TextVector:
         # Generate an embedding for the text using a pre-trained model
         inputs = self.tokenizer(text, return_tensors="pt", truncation=True, padding=True)
 
@@ -100,16 +100,16 @@ class TextProcessor:
             outputs = self.model(**inputs)
 
         embeddings = outputs.last_hidden_state[:, 0, :].numpy()
-        return TextEmbedding(vector=embeddings[0])
+        return TextVector(vector=embeddings[0])
 
-    def process_and_embed(self, text: str) -> (str, TextEmbedding):
-        cleaned_text = self.preprocess(text)
-        embedding = self.generate_embedding(cleaned_text)
+    def process_text(self, text: str) -> (str, TextVector):
+        cleaned_text = self.clean_text(text)
+        embedding = self.vectorize_text(cleaned_text)
         return cleaned_text, embedding
 
 
-class NotificationService:
-    def notify(self, message: NewsMessage) -> None:
+class Notifier:
+    def notify(self, message: NewsEntry) -> None:
         # Print notification for a new unique event
         print("-------- Notification --------")
         print(f"Time: {message['timestamp']}")
@@ -118,12 +118,12 @@ class NotificationService:
         print("------------------------------")
 
 
-class NewsLoader:
+class NewsReader:
     def __init__(self, file_path: str) -> None:
         self.file_path = file_path
         self.data = self._load_and_sort_data()
 
-    def _load_and_sort_data(self) -> List[NewsMessage]:
+    def _load_and_sort_data(self) -> List[NewsEntry]:
         # Load data from Excel and sort by publication time
         df = pd.read_excel(self.file_path)
         df['Время публикации'] = pd.to_datetime(df['Время публикации'], errors='coerce')
@@ -132,7 +132,7 @@ class NewsLoader:
         messages = df.to_dict('records')
 
         return [
-            NewsMessage(
+            NewsEntry(
                 timestamp=record['Время публикации'].isoformat(),
                 text=record['Текст сообщения'],
                 url=record['Ссылка на сообщение']
@@ -140,56 +140,56 @@ class NewsLoader:
             for record in messages
         ]
 
-    def get_messages(self):
+    def get_entries(self):
         # Generator for iterating through the loaded messages
         yield from self.data
 
 
-class NewsProcessor:
-    def __init__(self, data_loader: NewsLoader, text_processor: TextProcessor,
-                 relevance_classifier: RelevanceClassifier, cluster_manager: ClusterManager,
-                 notifier: NotificationService, output_file: str) -> None:
+class ContentProcessor:
+    def __init__(self, data_loader: NewsReader, text_pipeline: TextPipeline,
+                 keyword_matcher: KeywordMatcher, cluster_handler: ClusterHandler,
+                 notifier: Notifier, output_file: str) -> None:
         self.data_loader = data_loader
-        self.text_processor = text_processor
-        self.relevance_classifier = relevance_classifier
-        self.cluster_manager = cluster_manager
+        self.text_pipeline = text_pipeline
+        self.keyword_matcher = keyword_matcher
+        self.cluster_handler = cluster_handler
         self.notifier = notifier
-        self.excel_writer = ExcelWriter(output_file)
-        self.excel_writer.write_header(['Время публикации', 'Текст сообщения', 'Ссылка на сообщение', 'Кластер', 'Минцифры?'])
+        self.spreadsheet_writer = SpreadsheetWriter(output_file)
+        self.spreadsheet_writer.write_header(['Время публикации', 'Текст сообщения', 'Ссылка на сообщение', 'Кластер', 'Минцифры?'])
 
-    def process_news(self) -> None:
-        for message in self.data_loader.get_messages():
-            cleaned_text, embedding = self.text_processor.process_and_embed(message['text'])
+    def process_entries(self) -> None:
+        for message in self.data_loader.get_entries():
+            cleaned_text, embedding = self.text_pipeline.process_text(message['text'])
 
             # Classify relevance
-            is_relevant = self.relevance_classifier.is_relevant(cleaned_text)
+            is_relevant = self.keyword_matcher.matches_keywords(cleaned_text)
             relevance_flag = 1 if is_relevant else 0
 
             # Check for uniqueness or assign a new cluster
             if not is_relevant:
-                cluster_id = self.cluster_manager.add_to_cluster(embedding)
+                cluster_id = self.cluster_handler.assign_cluster_id(embedding)
             else:
-                is_unique, cluster_id = self.cluster_manager.get_cluster(embedding)
+                is_unique, cluster_id = self.cluster_handler.find_cluster(embedding)
                 if is_unique:
-                    cluster_id = self.cluster_manager.add_to_cluster(embedding)
+                    cluster_id = self.cluster_handler.assign_cluster_id(embedding)
                     self.notifier.notify(message)
 
             # Write data to Excel
-            self.excel_writer.append_row([message['timestamp'], message['text'], message['url'], cluster_id, relevance_flag])
+            self.spreadsheet_writer.append_row([message['timestamp'], message['text'], message['url'], cluster_id, relevance_flag])
 
         # Final save of the results
-        self.excel_writer.save()
+        self.spreadsheet_writer.save()
 
-    def calculate_significance(self):
+    def compute_cluster_significance(self):
         # Calculate cluster significance by reading the Excel file and updating it
-        df = pd.read_excel(self.excel_writer.output_file)
+        df = pd.read_excel(self.spreadsheet_writer.output_file)
 
         cluster_counts = df['Кластер'].value_counts()
         df['Значимость'] = df['Кластер'].map(cluster_counts)
         df = df.sort_values(by=['Значимость', 'Кластер', 'Время публикации'], ascending=[False, True, True])
 
-        df.to_excel(self.excel_writer.output_file, index=False)
-        print(f"Updated file with 'Значимость' column saved to {self.excel_writer.output_file}")
+        df.to_excel(self.spreadsheet_writer.output_file, index=False)
+        print(f"Updated file with 'Значимость' column saved to {self.spreadsheet_writer.output_file}")
 
 
 if __name__ == "__main__":
@@ -210,23 +210,23 @@ if __name__ == "__main__":
         "министерства цифровых технологий", "министерством цифровых технологий"
     ]
 
-    data_loader = NewsLoader(file_path)
-    relevance_classifier = RelevanceClassifier(keywords)
-    cluster_manager = ClusterManager()
-    text_processor = TextProcessor()
-    notifier = NotificationService()
+    data_loader = NewsReader(file_path)
+    keyword_matcher = KeywordMatcher(keywords)
+    cluster_handler = ClusterHandler()
+    text_pipeline = TextPipeline()
+    notifier = Notifier()
 
-    news_processor = NewsProcessor(
+    content_processor = ContentProcessor(
         data_loader=data_loader,
-        text_processor=text_processor,
-        relevance_classifier=relevance_classifier,
-        cluster_manager=cluster_manager,
+        text_pipeline=text_pipeline,
+        keyword_matcher=keyword_matcher,
+        cluster_handler=cluster_handler,
         notifier=notifier,
         output_file=output_file
     )
 
-    # Process all news messages
-    news_processor.process_news()
+    # Process all news entries
+    content_processor.process_entries()
 
     # Calculate and add the "Significance" column
-    news_processor.calculate_significance()
+    content_processor.compute_cluster_significance()
