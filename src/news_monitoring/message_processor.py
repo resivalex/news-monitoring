@@ -4,9 +4,9 @@ from .types import MessageEmbedding
 
 
 class MessageProcessor:
-    def __init__(self) -> None:
-        self.text_tokenizer = AutoTokenizer.from_pretrained("cointegrated/rubert-tiny2")
-        self.embedding_model = AutoModel.from_pretrained("cointegrated/rubert-tiny2")
+    def __init__(self, pretrained_model: str) -> None:
+        self.text_tokenizer = AutoTokenizer.from_pretrained(pretrained_model)
+        self.embedding_model = AutoModel.from_pretrained(pretrained_model)
 
     def clean_and_vectorize(self, text: str) -> (str, MessageEmbedding):
         cleaned_text = self._clean_text(text)

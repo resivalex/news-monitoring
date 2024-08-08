@@ -4,7 +4,6 @@ from news_monitoring import NewsMonitoringFactory
 if __name__ == "__main__":
     factory = NewsMonitoringFactory(
         input_path="./data/posts_mc.xlsx",
-        output_path="./data/clustered.xlsx",
         keywords=[
             "минцифры",
             "минцифра",
@@ -32,6 +31,8 @@ if __name__ == "__main__":
             "министерства цифровых технологий",
             "министерством цифровых технологий",
         ],
+        pretrained_model="cointegrated/rubert-tiny2",
+        output_path="./data/clustered.xlsx",
     )
     news_processor = factory.create_news_processor()
 
