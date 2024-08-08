@@ -16,6 +16,7 @@ class NewsProcessor:
         cluster_processor: ClusterProcessor,
         notifier: Notifier,
         output_path: str,
+        progress_callback=None,  # Accept progress callback
     ) -> None:
         self.news_loader = news_loader
         self.message_processor = message_processor
@@ -23,6 +24,7 @@ class NewsProcessor:
         self.cluster_processor = cluster_processor
         self.notifier = notifier
         self.excel_exporter = ExcelExporter(output_path)
+        self.progress_callback = progress_callback
         self.excel_exporter.write_header(
             [
                 "Время публикации",
@@ -34,7 +36,8 @@ class NewsProcessor:
         )
 
     def process_messages(self) -> None:
-        for news_message in self.news_loader.get_entries():
+        total_messages = len(self.news_loader.news_data)
+        for index, news_message in enumerate(self.news_loader.get_entries()):
             cleaned_text, text_embedding = self.message_processor.clean_and_vectorize(
                 news_message["content"]
             )
@@ -62,6 +65,10 @@ class NewsProcessor:
                     relevance_flag,
                 ]
             )
+
+            # Update progress
+            if self.progress_callback:
+                self.progress_callback((index + 1) / total_messages)
 
         # Final save of the results
         self.excel_exporter.save()

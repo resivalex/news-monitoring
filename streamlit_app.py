@@ -83,20 +83,25 @@ if uploaded_file is not None:
         "министерством цифровых технологий",
     ]
 
+    progress_bar = st.progress(0)
+
+    def update_progress(progress):
+        progress_bar.progress(int(progress * 100))
+
     # Create the factory and news processor
     factory = NewsMonitoringFactory(
         input_path=input_file_path,
         keywords=keywords,
         pretrained_model="cointegrated/rubert-tiny2",
         output_path=output_file_path,
+        progress_callback=update_progress,
     )
+
     news_processor = factory.create_news_processor()
 
-    # Progress bar
-    progress_bar = st.progress(0)
+    # Process news
     with st.spinner("Обработка новостей..."):
         news_processor.process_messages()
-        progress_bar.progress(50)
 
         # Evaluate cluster significance
         news_processor.evaluate_clusters()

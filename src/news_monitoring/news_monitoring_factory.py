@@ -13,11 +13,13 @@ class NewsMonitoringFactory:
         keywords: list[str],
         pretrained_model: str,
         output_path: str,
+        progress_callback=None,
     ) -> None:
         self.input_path = input_path
         self.keywords = keywords
         self.pretrained_model = pretrained_model
         self.output_path = output_path
+        self.progress_callback = progress_callback
 
     def create_news_processor(self) -> NewsProcessor:
         news_loader = NewsLoader(self.input_path)
@@ -33,4 +35,5 @@ class NewsMonitoringFactory:
             cluster_processor=cluster_processor,
             notifier=notifier,
             output_path=self.output_path,
+            progress_callback=self.progress_callback,
         )
