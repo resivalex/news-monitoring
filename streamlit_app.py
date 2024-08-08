@@ -1,12 +1,12 @@
 import streamlit as st
 import tempfile
-import os
+import pandas as pd
 from news_monitoring import NewsMonitoringFactory
 
-# Настройки страницы
+# Page settings
 st.set_page_config(page_title="Мониторинг новостей", layout="centered")
 
-# Заголовок и описание
+# Title and description
 st.title("Мониторинг новостей")
 st.markdown(
     """
@@ -27,21 +27,30 @@ st.markdown(
 """
 )
 
-# Загрузка файла
+# State to store the path to the generated file
+if "output_file_path" not in st.session_state:
+    st.session_state.output_file_path = None
+
+# File upload
 uploaded_file = st.file_uploader("Загрузите файл в формате XLSX", type=["xlsx"])
 
 if uploaded_file is not None:
-    st.write("Файл загружен")
+    st.write("Файл загружен!")
 
-    # Сохранение загруженного файла во временный каталог
+    # Save the uploaded file to a temporary directory
     with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp_file:
         tmp_file.write(uploaded_file.read())
         input_file_path = tmp_file.name
 
-    # Путь для сохранения выходного файла
+    # Path for saving the output file
     output_file_path = input_file_path.replace(".xlsx", "_processed.xlsx")
 
-    # Список ключевых слов
+    # Preview of the uploaded file
+    st.subheader("Превью загруженного файла")
+    df_uploaded = pd.read_excel(uploaded_file)
+    st.dataframe(df_uploaded)
+
+    # List of keywords
     keywords = [
         "минцифры",
         "минцифра",
@@ -70,7 +79,7 @@ if uploaded_file is not None:
         "министерством цифровых технологий",
     ]
 
-    # Создание фабрики и обработчика новостей
+    # Create the factory and news processor
     factory = NewsMonitoringFactory(
         input_path=input_file_path,
         keywords=keywords,
@@ -79,19 +88,27 @@ if uploaded_file is not None:
     )
     news_processor = factory.create_news_processor()
 
-    # Прогресс-бар
+    # Progress bar
     progress_bar = st.progress(0)
     with st.spinner("Обработка новостей..."):
         news_processor.process_messages()
         progress_bar.progress(50)
 
-        # Вычисление значимости кластеров
+        # Evaluate cluster significance
         news_processor.evaluate_clusters()
         progress_bar.progress(100)
 
     st.success("Обработка завершена! Вы можете скачать обработанный файл ниже.")
 
-    # Кнопка для загрузки обработанного файла
+    # Update session state with the output file path
+    st.session_state.output_file_path = output_file_path
+
+    # Preview of the generated file
+    st.subheader("Превью обработанного файла")
+    df_processed = pd.read_excel(output_file_path)
+    st.dataframe(df_processed.head(1000))
+
+    # Button to download the processed file
     with open(output_file_path, "rb") as processed_file:
         st.download_button(
             label="Скачать обработанный файл",
@@ -100,6 +117,17 @@ if uploaded_file is not None:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
 
-    # Очистка временных файлов
-    os.remove(input_file_path)
-    os.remove(output_file_path)
+# If there is a generated file but a new file has not been uploaded
+if st.session_state.output_file_path and not uploaded_file:
+    st.subheader("Последний обработанный файл")
+    df_last_processed = pd.read_excel(st.session_state.output_file_path)
+    st.dataframe(df_last_processed.head(1000))
+
+    # Button to download the last processed file
+    with open(st.session_state.output_file_path, "rb") as processed_file:
+        st.download_button(
+            label="Скачать последний обработанный файл",
+            data=processed_file,
+            file_name="обработанные_новости.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
