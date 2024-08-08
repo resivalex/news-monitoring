@@ -194,6 +194,7 @@ class MainProcessor:
 
         cluster_counts = df['Кластер'].value_counts()
         df['Значимость'] = df['Кластер'].map(cluster_counts)
+        df = df.sort_values(by=['Значимость', 'Кластер', 'Время публикации'], ascending=[False, True, True])
 
         df.to_excel(self.excel_writer.output_file, index=False)
         print(f"Updated file with 'Значимость' column saved to {self.excel_writer.output_file}")
