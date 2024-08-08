@@ -3,6 +3,8 @@ import numpy as np
 import pandas as pd
 from transformers import AutoTokenizer, AutoModel
 import torch
+from openpyxl import Workbook
+from openpyxl.utils.dataframe import dataframe_to_rows
 
 
 # TypedDict для представления структуры сообщения
@@ -193,20 +195,58 @@ class TextPreprocessor:
         return cleaned_text, embedding
 
 
+class ExcelWriter:
+    def __init__(self, output_file: str, save_interval: int = 1000):
+        """
+        Инициализация ExcelWriter с указанием файла для сохранения данных.
+        save_interval определяет, как часто файл будет сохраняться (в количестве строк).
+        """
+        self.output_file = output_file
+        self.workbook = Workbook()
+        self.worksheet = self.workbook.active
+        self.save_interval = save_interval
+        self.row_count = 0
+
+    def write_header(self, columns: List[str]):
+        """
+        Записывает заголовки в первый ряд Excel файла.
+        """
+        self.worksheet.append(columns)
+        self.row_count += 1
+
+    def append_row(self, row: List[Any]):
+        """
+        Добавляет одну строку данных в Excel файл.
+        """
+        self.worksheet.append(row)
+        self.row_count += 1
+
+        # Автосохранение через каждые save_interval строк
+        if self.row_count % self.save_interval == 0:
+            self.save()
+
+    def save(self):
+        """
+        Сохраняет файл Excel.
+        """
+        self.workbook.save(self.output_file)
+
+
 # Основной модуль обработки
 class MainProcessor:
     def __init__(self, data_loader: DataLoader, text_preprocessor: TextPreprocessor,
                  text_classifier: TextClassifier, event_state_manager: EventStateManager,
-                 notifier: Notifier) -> None:
+                 notifier: Notifier, output_file: str) -> None:
         """
-        Инициализация MainProcessor с необходимыми модулями.
+        Инициализация MainProcessor с необходимыми модулями и файлом для записи данных.
         """
         self.data_loader = data_loader
         self.text_preprocessor = text_preprocessor
         self.text_classifier = text_classifier
         self.event_state_manager = event_state_manager
         self.notifier = notifier
-        self.results = []  # Список для хранения результатов
+        self.excel_writer = ExcelWriter(output_file)
+        self.excel_writer.write_header(['Время публикации', 'Текст сообщения', 'Ссылка на сообщение', 'Кластер'])
 
     def process_messages(self) -> None:
         """
@@ -226,55 +266,45 @@ class MainProcessor:
             # Шаг 2: Классификация релевантности сообщения
             if not self.text_classifier.classify(cleaned_text):
                 unrelevant_messages += 1
-                self.results.append({**message, "Кластер": 0})
+                self.excel_writer.append_row([message['timestamp'], message['text'], message['url'], 0])
                 continue
 
             # Шаг 3: Проверка уникальности события
             is_unique, cluster_id = self.event_state_manager.is_event_unique(embedding)
             if not is_unique:
                 duplicate_events += 1
-                self.results.append({**message, "Кластер": cluster_id})
+                self.excel_writer.append_row([message['timestamp'], message['text'], message['url'], cluster_id])
                 continue
 
             # Шаг 4: Сохранение состояния и присвоение нового кластера
             new_cluster_id = self.event_state_manager.save_event_state(embedding)
-            self.results.append({**message, "Кластер": new_cluster_id})
+            self.excel_writer.append_row([message['timestamp'], message['text'], message['url'], new_cluster_id])
 
             # Отправка уведомления
             self.notifier.notify(message)
 
-        # Сохранение результатов в файл
-        self.save_results_to_excel()
-
-    def save_results_to_excel(self) -> None:
-        """
-        Сохраняет результаты обработки в XLSX файл.
-        """
-        df = pd.DataFrame(self.results)
-        output_file = "./data/clustered.xlsx"
-        df.to_excel(output_file, index=False)
-        print(f"Results saved to {output_file}")
+        # Окончательное сохранение результатов в файл
+        self.excel_writer.save()
 
 
 if __name__ == "__main__":
     # Пусть к файлу с новостями
     file_path = "./data/posts_mc.xlsx"
+    output_path = "./data/clustered.xlsx"
 
     # Определяем список синонимов для фильтрации новостей
     synonyms = [
-        "минцифры рф", "минцифра рф", "минцифре рф", "минцифрой рф", "минцифрах рф",
+        "минцифры", "минцифра", "минцифре", "минцифрой", "минцифрах",
         "министерство цифрового развития", "министерству цифрового развития",
-        "министерства цифрового развития", "минцифра россии", "минцифры россии",
-        "министерство цифрового развития рф", "министерство цифрового развития россии",
-        "министерство цифровизации", "министерство цифровизации рф",
-        "министерство цифровизации россии", "минцифры", "минцифра",
-        "цифровое министерство", "цифровое министерство рф",
-        "цифровое министерство россии", "министерство цифровой экономики",
-        "министерство цифровой экономики рф", "министерство цифровой экономики россии",
-        "минциф", "минцифров", "минцифрами", "министерство цифрового развития и связи",
-        "министерство цифрового развития и связи рф", "министерство цифрового развития и связи россии",
-        "министерство цифровых технологий", "министерство цифровых технологий рф",
-        "министерство цифровых технологий россии"
+        "министерства цифрового развития", "министерством цифрового развития",
+        "министерство цифровизации", "министерству цифровизации",
+        "министерства цифровизации", "министерством цифровизации",
+        "цифровое министерство", "цифрового министерства",
+        "цифровому министерству", "цифровым министерством",
+        "министерство цифровой экономики", "министерству цифровой экономики",
+        "министерства цифровой экономики", "министерством цифровой экономики",
+        "министерство цифровых технологий", "министерству цифровых технологий",
+        "министерства цифровых технологий", "министерством цифровых технологий"
     ]
 
     # Инициализация модулей
@@ -290,7 +320,8 @@ if __name__ == "__main__":
         text_preprocessor=text_preprocessor,
         text_classifier=text_classifier,
         event_state_manager=event_state_manager,
-        notifier=notifier
+        notifier=notifier,
+        output_file=output_path
     )
 
     # Запуск обработки всех сообщений
