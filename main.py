@@ -85,32 +85,39 @@ class TextClassifier:
         return False
 
 
-# Модуль управления состоянием и идентификации событий
 class EventStateManager:
     def __init__(self) -> None:
         """
         Инициализация EventStateManager.
-        Создает пустой список для хранения эмбеддингов сообщений.
+        Создает пустой список для хранения эмбеддингов сообщений и их кластеров.
         """
         self.embeddings = []
+        self.cluster_counter = 1  # Счетчик кластеров
+        self.clusters = []  # Список кластеров, соответствующих эмбеддингам
 
-    def save_event_state(self, embedding: Embedding) -> None:
+    def save_event_state(self, embedding: Embedding) -> int:
         """
-        Сохраняет эмбеддинг сообщения в память.
+        Сохраняет эмбеддинг сообщения в память и присваивает ему номер кластера.
+        Возвращает номер кластера.
         """
         self.embeddings.append(embedding)
+        cluster_id = self.cluster_counter
+        self.clusters.append(cluster_id)
+        self.cluster_counter += 1
+        return cluster_id
 
-    def is_event_unique(self, embedding: Embedding, threshold: float = 0.9) -> bool:
+    def is_event_unique(self, embedding: Embedding, threshold: float = 0.9) -> (bool, Optional[int]):
         """
         Проверяет уникальность события на основе эмбеддинга.
         Сравнение осуществляется с использованием косинусного расстояния.
-        Возвращает True, если событие уникально, иначе False.
+        Возвращает кортеж (True, None) если событие уникально,
+        либо (False, номер кластера) если это дубликат.
         """
-        for stored_embedding in self.embeddings:
+        for i, stored_embedding in enumerate(self.embeddings):
             similarity = self._cosine_similarity(embedding['vector'], stored_embedding['vector'])
             if similarity >= threshold:
-                return False
-        return True
+                return False, self.clusters[i]
+        return True, None
 
     def _cosine_similarity(self, vec1: np.ndarray, vec2: np.ndarray) -> float:
         """
@@ -199,6 +206,7 @@ class MainProcessor:
         self.text_classifier = text_classifier
         self.event_state_manager = event_state_manager
         self.notifier = notifier
+        self.results = []  # Список для хранения результатов
 
     def process_messages(self) -> None:
         """
@@ -211,22 +219,41 @@ class MainProcessor:
             if total_messages % 1000 == 0:
                 print(f"Total / Unrelevant / Duplicates: {total_messages} / {unrelevant_messages} / {duplicate_events}")
             total_messages += 1
+
             # Шаг 1: Предобработка текста и создание эмбеддинга
             cleaned_text, embedding = self.text_preprocessor.process_and_embed(message['text'])
 
             # Шаг 2: Классификация релевантности сообщения
             if not self.text_classifier.classify(cleaned_text):
                 unrelevant_messages += 1
+                self.results.append({**message, "Кластер": 0})
                 continue
 
             # Шаг 3: Проверка уникальности события
-            if not self.event_state_manager.is_event_unique(embedding):
+            is_unique, cluster_id = self.event_state_manager.is_event_unique(embedding)
+            if not is_unique:
                 duplicate_events += 1
+                self.results.append({**message, "Кластер": cluster_id})
                 continue
 
-            # Шаг 4: Сохранение состояния и отправка уведомления
-            self.event_state_manager.save_event_state(embedding)
+            # Шаг 4: Сохранение состояния и присвоение нового кластера
+            new_cluster_id = self.event_state_manager.save_event_state(embedding)
+            self.results.append({**message, "Кластер": new_cluster_id})
+
+            # Отправка уведомления
             self.notifier.notify(message)
+
+        # Сохранение результатов в файл
+        self.save_results_to_excel()
+
+    def save_results_to_excel(self) -> None:
+        """
+        Сохраняет результаты обработки в XLSX файл.
+        """
+        df = pd.DataFrame(self.results)
+        output_file = "./data/clustered.xlsx"
+        df.to_excel(output_file, index=False)
+        print(f"Results saved to {output_file}")
 
 
 if __name__ == "__main__":
