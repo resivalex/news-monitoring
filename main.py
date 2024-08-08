@@ -36,8 +36,8 @@ class DataLoader:
         # Преобразуем колонку "Время публикации" в datetime
         df['Время публикации'] = pd.to_datetime(df['Время публикации'], errors='coerce')
 
-        # Удаляем строки с некорректными датами
-        df = df.dropna(subset=['Время публикации'])
+        # Удаляем строки с некорректными датами или пустыми значениями
+        df = df.dropna(subset=['Время публикации', 'Текст сообщения'])
 
         # Сортируем по времени публикации
         df = df.sort_values(by='Время публикации')
@@ -151,11 +151,11 @@ class Notifier:
         Отправляет уведомление о новом уникальном событии.
         Выводит информацию о сообщении в консоль.
         """
-        print("----- New Notification -----")
+        print("-------- Notification --------")
         print(f"Time: {message['timestamp']}")
-        print(f"Message: {message['text']}")
         print(f"URL: {message['url']}")
-        print("-----------------------------")
+        print(message["text"])
+        print("------------------------------")
 
 
 # Модуль предобработки текста
@@ -251,24 +251,29 @@ class MainProcessor:
         """
         Выполняет полную обработку всех сообщений, используя генератор данных.
         """
+        total_messages = 0
+        unrelevant_messages = 0
+        duplicate_events = 0
         for message in self.data_loader.message_generator():
+            if total_messages % 1000 == 0:
+                print(f"Total / Unrelevant / Duplicates: {total_messages} / {unrelevant_messages} / {duplicate_events}")
+            total_messages += 1
             # Шаг 1: Предобработка текста и создание эмбеддинга
             cleaned_text, embedding = self.text_preprocessor.process_and_embed(message['text'])
 
             # Шаг 2: Классификация релевантности сообщения
             if not self.classifier.classify(cleaned_text):
-                print(f"Message is not relevant: {message['text']}")
+                unrelevant_messages += 1
                 continue
 
             # Шаг 3: Проверка уникальности события
             if not self.event_identifier.is_event_unique(embedding):
-                print(f"Event is not unique, no notification will be sent.")
+                duplicate_events += 1
                 continue
 
             # Шаг 4: Сохранение состояния и отправка уведомления
             self.event_identifier.save_event_state(embedding)
             self.notifier.notify(message)
-            print(f"Notification sent for message: {message['text']}")
 
 
 if __name__ == "__main__":
