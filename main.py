@@ -5,33 +5,32 @@ import pandas as pd
 from transformers import AutoTokenizer, AutoModel
 import torch
 
-
-# TypedDict for representing the message structure
+# TypedDict for representing a news message structure
 class NewsMessage(TypedDict):
     timestamp: str
     text: str
     url: str
 
 
-class Embedding(TypedDict):
+class TextEmbedding(TypedDict):
     vector: np.ndarray
 
 
 class ClusterManager:
     def __init__(self) -> None:
         self.embeddings = []
-        self.cluster_counter = 1
+        self.cluster_count = 1
         self.cluster_ids = []
 
-    def assign_cluster(self, embedding: Embedding) -> int:
+    def add_to_cluster(self, embedding: TextEmbedding) -> int:
         # Save the embedding and assign a new cluster ID
         self.embeddings.append(embedding)
-        cluster_id = self.cluster_counter
+        cluster_id = self.cluster_count
         self.cluster_ids.append(cluster_id)
-        self.cluster_counter += 1
+        self.cluster_count += 1
         return cluster_id
 
-    def find_cluster(self, embedding: Embedding, threshold: float = 0.9) -> (bool, Optional[int]):
+    def get_cluster(self, embedding: TextEmbedding, threshold: float = 0.9) -> (bool, Optional[int]):
         # Check if the embedding is unique based on cosine similarity
         for i, stored_embedding in enumerate(self.embeddings):
             similarity = self._cosine_similarity(embedding['vector'], stored_embedding['vector'])
@@ -52,12 +51,9 @@ class RelevanceClassifier:
         self.keywords = keywords
 
     def is_relevant(self, text: str) -> bool:
-        # Classify message as relevant if it contains any of the keywords
-        lower_text = text.lower()
-        for keyword in self.keywords:
-            if keyword.lower() in lower_text:
-                return True
-        return False
+        # Check if the text contains any of the relevant keywords
+        text_lower = text.lower()
+        return any(keyword.lower() in text_lower for keyword in self.keywords)
 
 
 class ExcelWriter:
@@ -94,11 +90,9 @@ class TextProcessor:
 
     def preprocess(self, text: str) -> str:
         # Clean and preprocess the text
-        text = text.lower()
-        text = " ".join(text.split())
-        return text
+        return " ".join(text.lower().split())
 
-    def generate_embedding(self, text: str) -> Embedding:
+    def generate_embedding(self, text: str) -> TextEmbedding:
         # Generate an embedding for the text using a pre-trained model
         inputs = self.tokenizer(text, return_tensors="pt", truncation=True, padding=True)
 
@@ -106,9 +100,9 @@ class TextProcessor:
             outputs = self.model(**inputs)
 
         embeddings = outputs.last_hidden_state[:, 0, :].numpy()
-        return Embedding(vector=embeddings[0])
+        return TextEmbedding(vector=embeddings[0])
 
-    def process_and_embed(self, text: str) -> (str, Embedding):
+    def process_and_embed(self, text: str) -> (str, TextEmbedding):
         cleaned_text = self.preprocess(text)
         embedding = self.generate_embedding(cleaned_text)
         return cleaned_text, embedding
@@ -116,7 +110,7 @@ class TextProcessor:
 
 class NotificationService:
     def notify(self, message: NewsMessage) -> None:
-        # Print notification for new unique event
+        # Print notification for a new unique event
         print("-------- Notification --------")
         print(f"Time: {message['timestamp']}")
         print(f"URL: {message['url']}")
@@ -124,7 +118,7 @@ class NotificationService:
         print("------------------------------")
 
 
-class NewsDataLoader:
+class NewsLoader:
     def __init__(self, file_path: str) -> None:
         self.file_path = file_path
         self.data = self._load_and_sort_data()
@@ -137,7 +131,7 @@ class NewsDataLoader:
         df = df.sort_values(by='Время публикации')
         messages = df.to_dict('records')
 
-        sorted_messages = [
+        return [
             NewsMessage(
                 timestamp=record['Время публикации'].isoformat(),
                 text=record['Текст сообщения'],
@@ -145,16 +139,14 @@ class NewsDataLoader:
             )
             for record in messages
         ]
-        return sorted_messages
 
-    def message_generator(self):
+    def get_messages(self):
         # Generator for iterating through the loaded messages
-        for message in self.data:
-            yield message
+        yield from self.data
 
 
 class NewsProcessor:
-    def __init__(self, data_loader: NewsDataLoader, text_processor: TextProcessor,
+    def __init__(self, data_loader: NewsLoader, text_processor: TextProcessor,
                  relevance_classifier: RelevanceClassifier, cluster_manager: ClusterManager,
                  notifier: NotificationService, output_file: str) -> None:
         self.data_loader = data_loader
@@ -165,21 +157,21 @@ class NewsProcessor:
         self.excel_writer = ExcelWriter(output_file)
         self.excel_writer.write_header(['Время публикации', 'Текст сообщения', 'Ссылка на сообщение', 'Кластер', 'Минцифры?'])
 
-    def process_messages(self) -> None:
-        for message in self.data_loader.message_generator():
+    def process_news(self) -> None:
+        for message in self.data_loader.get_messages():
             cleaned_text, embedding = self.text_processor.process_and_embed(message['text'])
 
             # Classify relevance
             is_relevant = self.relevance_classifier.is_relevant(cleaned_text)
             relevance_flag = 1 if is_relevant else 0
 
-            # Check for uniqueness or assign new cluster
+            # Check for uniqueness or assign a new cluster
             if not is_relevant:
-                cluster_id = self.cluster_manager.assign_cluster(embedding)
+                cluster_id = self.cluster_manager.add_to_cluster(embedding)
             else:
-                is_unique, cluster_id = self.cluster_manager.find_cluster(embedding)
+                is_unique, cluster_id = self.cluster_manager.get_cluster(embedding)
                 if is_unique:
-                    cluster_id = self.cluster_manager.assign_cluster(embedding)
+                    cluster_id = self.cluster_manager.add_to_cluster(embedding)
                     self.notifier.notify(message)
 
             # Write data to Excel
@@ -218,7 +210,7 @@ if __name__ == "__main__":
         "министерства цифровых технологий", "министерством цифровых технологий"
     ]
 
-    data_loader = NewsDataLoader(file_path)
+    data_loader = NewsLoader(file_path)
     relevance_classifier = RelevanceClassifier(keywords)
     cluster_manager = ClusterManager()
     text_processor = TextProcessor()
@@ -233,8 +225,8 @@ if __name__ == "__main__":
         output_file=output_file
     )
 
-    # Process all messages
-    news_processor.process_messages()
+    # Process all news messages
+    news_processor.process_news()
 
     # Calculate and add the "Significance" column
     news_processor.calculate_significance()
