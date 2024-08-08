@@ -125,8 +125,13 @@ class Notifier:
     def notify(self, message: Message) -> None:
         """
         Отправляет уведомление о новом уникальном событии.
+        Выводит информацию о сообщении в консоль.
         """
-        pass
+        print("----- New Notification -----")
+        print(f"Time: {message['timestamp']}")
+        print(f"Message: {message['text']}")
+        print(f"URL: {message['url']}")
+        print("-----------------------------")
 
 
 # Модуль предобработки текста
