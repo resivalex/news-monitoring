@@ -4,31 +4,55 @@ import os
 import pandas as pd
 from news_monitoring import NewsMonitoringFactory
 
+
+def process_news(input_file_path, output_file_path, update_progress):
+    factory = NewsMonitoringFactory(
+        input_path=input_file_path,
+        keywords=[
+            "минцифры",
+            "минцифра",
+            "минцифре",
+            "минцифрой",
+            "минцифрах",
+            "министерство цифрового развития",
+            "министерству цифрового развития",
+            "министерства цифрового развития",
+            "министерством цифрового развития",
+            "министерство цифровизации",
+            "министерству цифровизации",
+            "министерства цифровизации",
+            "министерством цифровизации",
+            "цифровое министерство",
+            "цифрового министерства",
+            "цифровому министерству",
+            "цифровым министерством",
+            "министерство цифровой экономики",
+            "министерству цифровой экономики",
+            "министерства цифровой экономики",
+            "министерством цифровой экономики",
+            "министерство цифровых технологий",
+            "министерству цифровых технологий",
+            "министерства цифровых технологий",
+            "министерством цифровых технологий",
+        ],
+        pretrained_model="cointegrated/rubert-tiny2",
+        output_path=output_file_path,
+        progress_callback=update_progress,
+    )
+
+    news_processor = factory.create_news_processor()
+
+    # Process news
+    news_processor.process_messages()
+
+    # Evaluate cluster significance
+    news_processor.evaluate_clusters()
+
+
 # Page settings
 st.set_page_config(page_title="Мониторинг новостей", layout="centered")
 
-# Title and description
-st.title("Мониторинг новостей")
-st.markdown(
-    """
-**Ссылка на репозиторий**: [news-monitoring](https://github.com/resivalex/news-monitoring/blob/main/src/news_monitoring/news_processor.py)
-
-**Формат входного файла:**
-
-- **Время публикации**: Дата и время публикации новости.
-- **Текст сообщения**: Содержание новости.
-- **Ссылка на сообщение**: URL-адрес новости.
-
-**Формат выходного файла:**
-
-- **Время публикации**: Дата и время публикации новости.
-- **Текст сообщения**: Содержание новости.
-- **Ссылка на сообщение**: URL-адрес новости.
-- **Кластер**: Номер кластера, к которому относится новость.
-- **Минцифры?**: Связана ли новость с Минцифры РФ, 0 или 1.
-- **Значимость**: Количество дублей определённой новости.
-"""
-)
+st.markdown(open("readme.md").read())
 
 # State to store the path to the generated file
 if "output_file_path" not in st.session_state:
@@ -56,57 +80,14 @@ if uploaded_file is not None:
     df_uploaded = pd.read_excel(uploaded_file)
     st.dataframe(df_uploaded.head(100))
 
-    # List of keywords
-    keywords = [
-        "минцифры",
-        "минцифра",
-        "минцифре",
-        "минцифрой",
-        "минцифрах",
-        "министерство цифрового развития",
-        "министерству цифрового развития",
-        "министерства цифрового развития",
-        "министерством цифрового развития",
-        "министерство цифровизации",
-        "министерству цифровизации",
-        "министерства цифровизации",
-        "министерством цифровизации",
-        "цифровое министерство",
-        "цифрового министерства",
-        "цифровому министерству",
-        "цифровым министерством",
-        "министерство цифровой экономики",
-        "министерству цифровой экономики",
-        "министерства цифровой экономики",
-        "министерством цифровой экономики",
-        "министерство цифровых технологий",
-        "министерству цифровых технологий",
-        "министерства цифровых технологий",
-        "министерством цифровых технологий",
-    ]
-
     progress_bar = st.progress(0)
 
     def update_progress(progress):
         progress_bar.progress(int(progress * 100))
 
-    # Create the factory and news processor
-    factory = NewsMonitoringFactory(
-        input_path=input_file_path,
-        keywords=keywords,
-        pretrained_model="cointegrated/rubert-tiny2",
-        output_path=output_file_path,
-        progress_callback=update_progress,
-    )
-
-    news_processor = factory.create_news_processor()
-
-    # Process news
+    # Process news in the background
     with st.spinner("Обработка новостей..."):
-        news_processor.process_messages()
-
-        # Evaluate cluster significance
-        news_processor.evaluate_clusters()
+        process_news(input_file_path, output_file_path, update_progress)
         progress_bar.progress(100)
 
     st.success("Обработка завершена! Вы можете скачать обработанный файл ниже.")
