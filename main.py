@@ -1,5 +1,6 @@
 from typing import List, Optional, TypedDict, Any
 import numpy as np
+import pandas as pd
 
 
 # TypedDict для представления структуры сообщения
@@ -17,16 +18,55 @@ class Embedding(TypedDict):
 class DataLoader:
     def __init__(self, file_path: str) -> None:
         """
-        Инициализация DataLoader с путем к CSV-файлу.
+        Инициализация DataLoader с путем к XLSX-файлу.
+        Загружает данные из файла и сортирует их по времени публикации.
         """
         self.file_path = file_path
+        self.data = self._load_and_sort_data()
+        self.current_index = 0
+
+    def _load_and_sort_data(self) -> List[Message]:
+        """
+        Внутренний метод для загрузки данных из XLSX-файла и сортировки по времени публикации.
+        """
+        # Загружаем данные из XLSX-файла
+        df = pd.read_excel(self.file_path)
+
+        # Преобразуем колонку "Время публикации" в datetime
+        df['Время публикации'] = pd.to_datetime(df['Время публикации'], errors='coerce')
+
+        # Удаляем строки с некорректными датами
+        df = df.dropna(subset=['Время публикации'])
+
+        # Сортируем по времени публикации
+        df = df.sort_values(by='Время публикации')
+
+        # Преобразуем данные в список словарей
+        messages = df.to_dict('records')
+
+        # Преобразуем записи в формат Message
+        sorted_messages = [
+            Message(
+                timestamp=record['Время публикации'].isoformat(),
+                text=record['Текст сообщения'],
+                url=record['Ссылка на сообщение']
+            )
+            for record in messages
+        ]
+
+        return sorted_messages
 
     def load_next_message(self) -> Optional[Message]:
         """
-        Загружает и возвращает следующее сообщение из CSV-файла.
+        Загружает и возвращает следующее сообщение.
         Возвращает None, если сообщений больше нет.
         """
-        pass
+        if self.current_index < len(self.data):
+            message = self.data[self.current_index]
+            self.current_index += 1
+            return message
+        else:
+            return None
 
 
 # Модуль поиска терминов
