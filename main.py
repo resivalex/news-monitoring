@@ -25,7 +25,6 @@ class DataLoader:
         """
         self.file_path = file_path
         self.data = self._load_and_sort_data()
-        self.current_index = 0
 
     def _load_and_sort_data(self) -> List[Message]:
         """
@@ -58,17 +57,12 @@ class DataLoader:
 
         return sorted_messages
 
-    def load_next_message(self) -> Optional[Message]:
+    def message_generator(self):
         """
-        Загружает и возвращает следующее сообщение.
-        Возвращает None, если сообщений больше нет.
+        Генератор, который последовательно возвращает сообщения из загруженных и отсортированных данных.
         """
-        if self.current_index < len(self.data):
-            message = self.data[self.current_index]
-            self.current_index += 1
-            return message
-        else:
-            return None
+        for message in self.data:
+            yield message
 
 
 # Модуль поиска терминов
@@ -253,38 +247,28 @@ class MainProcessor:
         self.event_identifier = event_identifier
         self.notifier = notifier
 
-    def process_next_message(self) -> None:
+    def process_messages(self) -> None:
         """
-        Выполняет полную обработку следующего сообщения:
-        1. Загружает сообщение.
-        2. Предобрабатывает текст и создает эмбеддинг.
-        3. Классифицирует релевантность.
-        4. Проверяет уникальность события.
-        5. Сохраняет состояние события и отправляет уведомление, если событие уникально.
+        Выполняет полную обработку всех сообщений, используя генератор данных.
         """
-        # Шаг 1: Загрузка следующего сообщения
-        message = self.data_loader.load_next_message()
-        if message is None:
-            print("No more messages to process.")
-            return
+        for message in self.data_loader.message_generator():
+            # Шаг 1: Предобработка текста и создание эмбеддинга
+            cleaned_text, embedding = self.text_preprocessor.process_and_embed(message['text'])
 
-        # Шаг 2: Предобработка текста и создание эмбеддинга
-        cleaned_text, embedding = self.text_preprocessor.process_and_embed(message['text'])
+            # Шаг 2: Классификация релевантности сообщения
+            if not self.classifier.classify(cleaned_text):
+                print(f"Message is not relevant: {message['text']}")
+                continue
 
-        # Шаг 3: Классификация релевантности сообщения
-        if not self.classifier.classify(cleaned_text):
-            print(f"Message is not relevant: {message['text']}")
-            return
+            # Шаг 3: Проверка уникальности события
+            if not self.event_identifier.is_event_unique(embedding):
+                print(f"Event is not unique, no notification will be sent.")
+                continue
 
-        # Шаг 4: Проверка уникальности события
-        if not self.event_identifier.is_event_unique(embedding):
-            print(f"Event is not unique, no notification will be sent.")
-            return
-
-        # Шаг 5: Сохранение состояния и отправка уведомления
-        self.event_identifier.save_event_state(embedding)
-        self.notifier.notify(message)
-        print(f"Notification sent for message: {message['text']}")
+            # Шаг 4: Сохранение состояния и отправка уведомления
+            self.event_identifier.save_event_state(embedding)
+            self.notifier.notify(message)
+            print(f"Notification sent for message: {message['text']}")
 
 
 if __name__ == "__main__":
@@ -327,5 +311,4 @@ if __name__ == "__main__":
     )
 
     # Запуск обработки всех сообщений
-    while True:
-        main_processor.process_next_message()
+    main_processor.process_messages()
