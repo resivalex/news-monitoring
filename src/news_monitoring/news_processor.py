@@ -16,7 +16,7 @@ class NewsProcessor:
         cluster_processor: ClusterProcessor,
         notifier: Notifier,
         output_path: str,
-        progress_callback=None,  # Accept progress callback
+        progress_callback=None,
     ) -> None:
         self.news_loader = news_loader
         self.message_processor = message_processor

@@ -11,6 +11,8 @@ st.set_page_config(page_title="Мониторинг новостей", layout="c
 st.title("Мониторинг новостей")
 st.markdown(
     """
+**Ссылка на репозиторий**: [news-monitoring](https://github.com/resivalex/news-monitoring/blob/main/src/news_monitoring/news_processor.py)
+
 **Формат входного файла:**
 
 - **Время публикации**: Дата и время публикации новости.
