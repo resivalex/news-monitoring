@@ -31,18 +31,18 @@ class DataLoader:
 
 # Модуль классификации
 class Classifier:
-    def __init__(self, synonym_manager: 'SynonymManager') -> None:
+    def __init__(self, term_manager: 'TermManager') -> None:
         """
-        Инициализация классификатора с менеджером синонимов.
+        Инициализация классификатора с менеджером терминов.
         """
-        self.synonym_manager = synonym_manager
+        self.term_manager = term_manager
 
     def classify(self, text: str) -> bool:
         """
         Классифицирует сообщение как релевантное или нерелевантное.
         Возвращает True, если сообщение связано с Минцифры РФ, иначе False.
         """
-        pass
+        return self.term_manager.contains_relevant_terms(text)
 
 
 # Модуль управления состоянием
@@ -69,26 +69,28 @@ class Notifier:
         pass
 
 
-# Модуль словарей и синонимов
-class SynonymManager:
-    def __init__(self, synonym_dict: dict) -> None:
+# Модуль поиска терминов
+class TermManager:
+    def __init__(self, synonyms: List[str]) -> None:
         """
-        Инициализация SynonymManager с заданным словарем синонимов.
+        Инициализация заданным списком синонимов.
         """
-        self.synonym_dict = synonym_dict
-
-    def find_synonyms(self, word: str) -> List[str]:
-        """
-        Возвращает список синонимов для заданного слова.
-        """
-        pass
+        self.synonyms = synonyms
 
     def contains_relevant_terms(self, text: str) -> bool:
         """
         Проверяет, содержит ли текст релевантные термины (слова и их синонимы).
         Возвращает True, если релевантные термины найдены, иначе False.
         """
-        pass
+        # Приведение текста к нижнему регистру для облегчения поиска
+        lower_text = text.lower()
+
+        # Проверка наличия любого синонима в тексте
+        for synonym in self.synonyms:
+            if synonym.lower() in lower_text:
+                return True
+
+        return False
 
 # Модуль предобработки текста
 class TextPreprocessor:
