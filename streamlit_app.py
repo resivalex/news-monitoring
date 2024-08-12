@@ -1,6 +1,5 @@
 import streamlit as st
 import tempfile
-import pandas as pd
 from news_monitoring import NewsMonitoringFactory
 
 
@@ -44,7 +43,7 @@ def process_news(input_file_path, update_progress):
     news_processor.process_messages()
 
     # Evaluate cluster significance
-    news_processor.evaluate_clusters()
+    return news_processor.evaluate_clusters()
 
 
 # Page settings
@@ -79,4 +78,12 @@ if uploaded_file is not None:
         key="user_message_chat_input",
     )
 
-    process_news(input_file_path, update_progress)
+    important_news = process_news(input_file_path, update_progress)
+
+    with st.expander("Значимые новости"):
+        st.write(
+            "Единственный критерий важности новости - количество упоминаний в различных источниках."
+        )
+        important_news_output = important_news[["significance", "content"]].copy()
+        important_news_output.reset_index()
+        st.dataframe(important_news_output)
