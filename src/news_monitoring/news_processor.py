@@ -80,4 +80,4 @@ class NewsProcessor:
             ascending=[False, True, True],
         )
 
-        return news_df[[news_df["is_notified"]]]
+        return news_df[news_df["notified"] == True]

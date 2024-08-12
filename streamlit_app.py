@@ -50,10 +50,10 @@ def process_news(input_file_path, update_progress):
 # Page settings
 st.set_page_config(page_title="Мониторинг новостей", layout="centered")
 
-st.markdown(open("readme.md").read())
-
 # File upload
 with st.sidebar:
+    st.markdown(open("readme.md").read())
+
     uploaded_file = st.file_uploader("Загрузите файл в формате XLSX", type=["xlsx"])
 
 if uploaded_file is not None:
