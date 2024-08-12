@@ -52,29 +52,31 @@ st.set_page_config(page_title="Мониторинг новостей", layout="c
 
 st.markdown(open("readme.md").read())
 
-# State to store the path to the generated file
-if "output_file_path" not in st.session_state:
-    st.session_state.output_file_path = None
-
 # File upload
-uploaded_file = st.file_uploader("Загрузите файл в формате XLSX", type=["xlsx"])
+with st.sidebar:
+    uploaded_file = st.file_uploader("Загрузите файл в формате XLSX", type=["xlsx"])
 
 if uploaded_file is not None:
-    st.write("Файл загружен!")
+    with st.sidebar:
+        st.write("Файл загружен!")
 
     # Save the uploaded file to a temporary directory
     with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp_file:
         tmp_file.write(uploaded_file.read())
         input_file_path = tmp_file.name
 
-    progress_bar = st.progress(0)
+    with st.sidebar:
+        placeholder = st.empty()
+        progress_bar = st.progress(0)
 
-    def update_progress(progress):
-        progress_bar.progress(int(progress * 100))
+        def update_progress(progress, comment):
+            progress_bar.progress(int(progress * 100))
+            placeholder.text(comment)
 
-    # Process news in the background
-    with st.spinner("Обработка новостей..."):
-        process_news(input_file_path, update_progress)
-        progress_bar.progress(100)
+    st.chat_input(
+        "",
+        disabled=True,
+        key="user_message_chat_input",
+    )
 
-    st.success("Обработка завершена! Вы можете скачать обработанный файл ниже.")
+    process_news(input_file_path, update_progress)

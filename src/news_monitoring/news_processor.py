@@ -1,3 +1,4 @@
+import datetime
 import pandas as pd
 from .news_loader import NewsLoader
 from .message_processor import MessageProcessor
@@ -60,7 +61,13 @@ class NewsProcessor:
 
             # Update progress
             if self.progress_callback:
-                self.progress_callback((index + 1) / total_messages)
+                # time + percentage
+                time = datetime.datetime.fromisoformat(
+                    news_message["published_at"]
+                ).strftime("%Y-%m-%d %H:%M")
+                ratio = (index + 1) / total_messages
+                comment = f"{time} - {ratio:.1%}"
+                self.progress_callback(ratio, comment)
 
     def evaluate_clusters(self):
         # Calculate cluster significance
@@ -73,4 +80,4 @@ class NewsProcessor:
             ascending=[False, True, True],
         )
 
-        return news_df[[news_df["is_notified"]] == True]
+        return news_df[[news_df["is_notified"]]]
