@@ -2,7 +2,7 @@ from .news_loader import NewsLoader
 from .keyword_filter import KeywordFilter
 from .cluster_processor import ClusterProcessor
 from .message_processor import MessageProcessor
-from .notifier import Notifier
+from .streamlit_notifier import StreamlitNotifier
 from .news_processor import NewsProcessor
 
 
@@ -12,13 +12,11 @@ class NewsMonitoringFactory:
         input_path: str,
         keywords: list[str],
         pretrained_model: str,
-        output_path: str,
         progress_callback=None,
     ) -> None:
         self.input_path = input_path
         self.keywords = keywords
         self.pretrained_model = pretrained_model
-        self.output_path = output_path
         self.progress_callback = progress_callback
 
     def create_news_processor(self) -> NewsProcessor:
@@ -26,7 +24,7 @@ class NewsMonitoringFactory:
         relevance_filter = KeywordFilter(self.keywords)
         cluster_processor = ClusterProcessor()
         message_processor = MessageProcessor(pretrained_model=self.pretrained_model)
-        notifier = Notifier()
+        notifier = StreamlitNotifier()
 
         return NewsProcessor(
             news_loader=news_loader,
@@ -34,6 +32,5 @@ class NewsMonitoringFactory:
             relevance_filter=relevance_filter,
             cluster_processor=cluster_processor,
             notifier=notifier,
-            output_path=self.output_path,
             progress_callback=self.progress_callback,
         )

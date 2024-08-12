@@ -12,7 +12,7 @@ class NewsLoader:
         # Load data from Excel and sort by publication time
         news_df = pd.read_excel(self.data_file)
         news_df["Время публикации"] = pd.to_datetime(
-            news_df["Время публикации"], errors="coerce"
+            news_df["Время публикации"], format="%d.%m.%Y %H:%M"
         )
         news_df = news_df.dropna(subset=["Время публикации", "Текст сообщения"])
         news_df = news_df.sort_values(by="Время публикации")

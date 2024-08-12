@@ -3,8 +3,7 @@ from .news_loader import NewsLoader
 from .message_processor import MessageProcessor
 from .keyword_filter import KeywordFilter
 from .cluster_processor import ClusterProcessor
-from .notifier import Notifier
-from .excel_exporter import ExcelExporter
+from .streamlit_notifier import StreamlitNotifier
 
 
 class NewsProcessor:
@@ -14,8 +13,7 @@ class NewsProcessor:
         message_processor: MessageProcessor,
         relevance_filter: KeywordFilter,
         cluster_processor: ClusterProcessor,
-        notifier: Notifier,
-        output_path: str,
+        notifier: StreamlitNotifier,
         progress_callback=None,
     ) -> None:
         self.news_loader = news_loader
@@ -23,17 +21,9 @@ class NewsProcessor:
         self.relevance_filter = relevance_filter
         self.cluster_processor = cluster_processor
         self.notifier = notifier
-        self.excel_exporter = ExcelExporter(output_path)
         self.progress_callback = progress_callback
-        self.excel_exporter.write_header(
-            [
-                "Время публикации",
-                "Текст сообщения",
-                "Ссылка на сообщение",
-                "Кластер",
-                "Минцифры?",
-            ]
-        )
+
+        self.processed_records = []
 
     def process_messages(self) -> None:
         total_messages = len(self.news_loader.news_data)
@@ -52,39 +42,35 @@ class NewsProcessor:
             )
 
             # Notify if the message is relevant and unique
-            if is_relevant and is_unique:
+            is_notified = is_relevant and is_unique
+            if is_notified:
                 self.notifier.notify(news_message)
 
-            # Write data to Excel
-            self.excel_exporter.write_row(
-                [
-                    news_message["published_at"],
-                    news_message["content"],
-                    news_message["url"],
-                    assigned_cluster,
-                    relevance_flag,
-                ]
+            # Save the processed record
+            self.processed_records.append(
+                {
+                    "published_at": news_message["published_at"],
+                    "content": news_message["content"],
+                    "url": news_message["url"],
+                    "cluster": assigned_cluster,
+                    "relevant": relevance_flag,
+                    "notified": is_notified,
+                }
             )
 
             # Update progress
             if self.progress_callback:
                 self.progress_callback((index + 1) / total_messages)
 
-        # Final save of the results
-        self.excel_exporter.save()
-
     def evaluate_clusters(self):
-        # Calculate cluster significance by reading the Excel file and updating it
-        news_df = pd.read_excel(self.excel_exporter.file_path)
+        # Calculate cluster significance
+        news_df = pd.DataFrame(self.processed_records)
 
-        cluster_sizes = news_df["Кластер"].value_counts()
-        news_df["Значимость"] = news_df["Кластер"].map(cluster_sizes)
+        cluster_sizes = news_df["cluster"].value_counts()
+        news_df["significance"] = news_df["cluster"].map(cluster_sizes)
         news_df = news_df.sort_values(
-            by=["Значимость", "Кластер", "Время публикации"],
+            by=["significance", "cluster", "published_at"],
             ascending=[False, True, True],
         )
 
-        news_df.to_excel(self.excel_exporter.file_path, index=False)
-        print(
-            f"Updated file with 'Значимость' column saved to {self.excel_exporter.file_path}"
-        )
+        return news_df[[news_df["is_notified"]] == True]

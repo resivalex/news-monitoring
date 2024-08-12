@@ -9,7 +9,7 @@ class ClusterProcessor:
         self.cluster_ids = []
 
     def process_embedding(
-        self, text_embedding: MessageEmbedding, similarity_threshold: float = 0.9
+        self, text_embedding: MessageEmbedding, similarity_threshold: float = 0.85
     ) -> (bool, int):
         """
         Check if the embedding is unique based on cosine similarity and assign a cluster ID.

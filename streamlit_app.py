@@ -1,11 +1,10 @@
 import streamlit as st
 import tempfile
-import os
 import pandas as pd
 from news_monitoring import NewsMonitoringFactory
 
 
-def process_news(input_file_path, output_file_path, update_progress):
+def process_news(input_file_path, update_progress):
     factory = NewsMonitoringFactory(
         input_path=input_file_path,
         keywords=[
@@ -36,7 +35,6 @@ def process_news(input_file_path, output_file_path, update_progress):
             "министерством цифровых технологий",
         ],
         pretrained_model="cointegrated/rubert-tiny2",
-        output_path=output_file_path,
         progress_callback=update_progress,
     )
 
@@ -69,17 +67,6 @@ if uploaded_file is not None:
         tmp_file.write(uploaded_file.read())
         input_file_path = tmp_file.name
 
-    # Path for saving the output file
-    output_file_name = os.path.splitext(os.path.basename(uploaded_file.name))[0]
-    output_file_path = os.path.join(
-        tempfile.gettempdir(), f"{output_file_name}_processed.xlsx"
-    )
-
-    # Preview of the uploaded file
-    st.subheader("Превью загруженного файла")
-    df_uploaded = pd.read_excel(uploaded_file)
-    st.dataframe(df_uploaded.head(100))
-
     progress_bar = st.progress(0)
 
     def update_progress(progress):
@@ -87,24 +74,7 @@ if uploaded_file is not None:
 
     # Process news in the background
     with st.spinner("Обработка новостей..."):
-        process_news(input_file_path, output_file_path, update_progress)
+        process_news(input_file_path, update_progress)
         progress_bar.progress(100)
 
     st.success("Обработка завершена! Вы можете скачать обработанный файл ниже.")
-
-    # Update session state with the output file path
-    st.session_state.output_file_path = output_file_path
-
-    # Preview of the generated file
-    st.subheader("Превью обработанного файла")
-    df_processed = pd.read_excel(output_file_path)
-    st.dataframe(df_processed.head(100))
-
-    # Button to download the processed file
-    with open(output_file_path, "rb") as processed_file:
-        st.download_button(
-            label="Скачать обработанный файл",
-            data=processed_file,
-            file_name=f"{output_file_name}_processed.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        )
